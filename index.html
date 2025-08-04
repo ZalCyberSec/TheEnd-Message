@@ -1,0 +1,215 @@
+<!DOCTYPE html><html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram MultiChat</title>
+  <style>
+    body {
+      background: url('https://files.catbox.moe/kaeexs.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      width: 90%;
+      max-width: 350px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 10px;
+    }
+    input, button {
+      width: 100%;
+      padding: 5px;
+      margin: 5px 0;
+      border-radius: 6px;
+      border: 1px solid silver;
+      background: #1e1e1e;
+      color: white;
+      font-size: 12px;
+    }
+    .btn-group {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .btn-group button {
+      width: 48%;
+    }
+    .profile img {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid silver;
+      object-fit: cover;
+    }
+    .chat-area {
+      height: 200px;
+      overflow-y: auto;
+      background: rgba(255,255,255,0.05);
+      padding: 6px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+    .msg {
+      margin: 3px 0;
+      padding: 4px 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 5px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="authSelect">
+    <div class="btn-group">
+      <button onclick="showLogin()">Login</button>
+      <button onclick="showRegister()">Daftar</button>
+    </div>
+  </div>  <div class="container" id="loginPage" style="display:none">
+    <button onclick="goBack()">← Kembali</button>
+    <h3>Login</h3>
+    <input type="text" id="loginName" placeholder="Nama">
+    <input type="password" id="loginPass" placeholder="Password">
+    <button onclick="login()">Masuk</button>
+  </div>  <div class="container" id="registerPage" style="display:none">
+    <button onclick="goBack()">← Kembali</button>
+    <h4>Register</h4>
+    <input type="text" id="regName" placeholder="Nama">
+    <input type="password" id="regPass" placeholder="Password">
+    <input type="text" id="regUser" placeholder="@username">
+    <input type="file" id="regPic" accept="image/*">
+    <button onclick="register()">Daftar</button>
+  </div>  <div class="container" id="mainPage" style="display:none">
+    <div class="profile" style="text-align:center">
+      <img id="fotoUser" src="">
+      <h4 id="userInfo" style="margin-top:6px; font-size:13px"></h4>
+    </div>
+    <input type="text" id="searchUser" placeholder="Cari username..." oninput="searchUserFunc()">
+    <div id="searchResults"></div><div id="chatSection" style="display:none">
+  <h5 id="chatWith" style="font-size:13px"></h5>
+  <div class="chat-area" id="chatBox"></div>
+  <input type="text" id="messageInput" placeholder="Tulis pesan...">
+  <button onclick="sendMessage()">Kirim</button>
+</div>
+<button onclick="logout()" style="margin-top:6px;background:red;font-size:12px">Logout</button>
+
+  </div>  <script>
+    const server = 'http://localhost:3000';
+    let currentUser = null;
+    let currentChat = null;
+
+    function showLogin() {
+      document.getElementById('authSelect').style.display = 'none';
+      document.getElementById('loginPage').style.display = 'block';
+    }
+
+    function showRegister() {
+      document.getElementById('authSelect').style.display = 'none';
+      document.getElementById('registerPage').style.display = 'block';
+    }
+
+    function goBack() {
+      document.getElementById('loginPage').style.display = 'none';
+      document.getElementById('registerPage').style.display = 'none';
+      document.getElementById('authSelect').style.display = 'block';
+    }
+
+    function login() {
+      const name = document.getElementById('loginName').value;
+      const pass = document.getElementById('loginPass').value;
+      fetch(`${server}/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, password: pass })
+      })
+      .then(res => res.json())
+      .then(data => {
+        currentUser = data;
+        showMain();
+      })
+      .catch(() => alert('Login gagal'));
+    }
+
+    function register() {
+      const name = document.getElementById('regName').value;
+      const pass = document.getElementById('regPass').value;
+      const username = document.getElementById('regUser').value;
+      const file = document.getElementById('regPic').files[0];
+
+      if (!file) return alert('Pilih foto profil!');
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const picData = e.target.result;
+        fetch(`${server}/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, password: pass, username, pic: picData })
+        })
+        .then(res => res.json())
+        .then(data => {
+          currentUser = data;
+          showMain();
+        })
+        .catch(() => alert('Register gagal'));
+      }
+      reader.readAsDataURL(file);
+    }
+
+    function showMain() {
+      document.getElementById('loginPage').style.display = 'none';
+      document.getElementById('registerPage').style.display = 'none';
+      document.getElementById('mainPage').style.display = 'block';
+      document.getElementById('fotoUser').src = currentUser.pic;
+      document.getElementById('userInfo').innerText = `${currentUser.name} (${currentUser.username})`;
+    }
+
+    function searchUserFunc() {
+      const q = document.getElementById('searchUser').value;
+      fetch(`${server}/search?q=${q}`)
+        .then(res => res.json())
+        .then(data => {
+          const result = data.map(u => `<div onclick="openChat('${u.username}')" style='cursor:pointer;padding:4px;background:#222;margin:4px 0;border-radius:6px;font-size:12px;'>${u.name} - ${u.username}</div>`);
+          document.getElementById('searchResults').innerHTML = result.join('');
+        });
+    }
+
+    function openChat(targetUsername) {
+      currentChat = targetUsername;
+      document.getElementById('chatWith').innerText = `Chat dengan ${targetUsername}`;
+      document.getElementById('chatSection').style.display = 'block';
+      loadChat();
+    }
+
+    function loadChat() {
+      fetch(`${server}/chat?user1=${currentUser.username}&user2=${currentChat}`)
+        .then(res => res.json())
+        .then(msgs => {
+          const chatHTML = msgs.map(m => `<div class='msg'><b>${m.from}:</b> ${m.message}</div>`);
+          document.getElementById('chatBox').innerHTML = chatHTML.join('');
+        });
+    }
+
+    function sendMessage() {
+      const msg = document.getElementById('messageInput').value;
+      if (!msg) return;
+      fetch(`${server}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: currentUser.username, to: currentChat, message: msg })
+      })
+      .then(() => {
+        document.getElementById('messageInput').value = '';
+        loadChat();
+      });
+    }
+
+    function logout() {
+      currentUser = null;
+      location.reload();
+    }
+  </script></body>
+</html>
